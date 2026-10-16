@@ -11,7 +11,8 @@ MAXROW = 1001                        # dernière ligne client possible dans BASE
 NLIST = MAXROW - 1                   # lignes calculées par feuille jour
 DAYS = ["LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI"]
 DAYCOL = dict(zip(DAYS, "FGHIJ"))
-CONSIGNES = ["Commande habituelle", "Attention impayé", "Ne pas relancer", "Client sensible"]
+CONSIGNES = ["Commande habituelle", "Proposer le Flash", "Commande par mail / Webstore", "Demander le chef",
+             "Heure impérative", "Attention impayé", "Client sensible", "Fermé / saisonnier", "Ne pas relancer"]
 TIMES = [datetime.time(h, m) for h in range(8, 19) for m in (0, 15, 30, 45) if (h, m) <= (18, 30)]
 BASE_HDR = ["HEURE D'APPEL", "NOM CLIENT", "CODE CLIENT", "VILLE", "TOUS LES JOURS",
             *DAYS, "TÉLÉPHONE", "CONSIGNE", "COMMENTAIRE"]
@@ -19,8 +20,11 @@ EXEMPLE = [datetime.time(8, 30), "EXEMPLE - NE PAS SUPPRIMER", 123456, "VILLARD 
            True, False, True, False, False, "0476000000", "Commande habituelle",
            "Demander Paul - livraison le mardi"]
 RED, DARK, GREY = "#C0504D", "#943634", "#808080"
-CONSIGNE_FMT = {"Commande habituelle": ("#DDEBF7", "#1F4E78"), "Attention impayé": ("#FFC7CE", "#9C0006"),
-                "Ne pas relancer": ("#D9D9D9", "#404040"), "Client sensible": ("#FFEB9C", "#9C5700")}
+CONSIGNE_FMT = {"Commande habituelle": ("#DDEBF7", "#1F4E78"), "Proposer le Flash": ("#E4DFEC", "#5B2C6F"),
+                "Commande par mail / Webstore": ("#E2EFDA", "#375623"), "Demander le chef": ("#FCE4D6", "#843C0C"),
+                "Heure impérative": ("#F8CBE0", "#7A1F4D"), "Attention impayé": ("#FFC7CE", "#9C0006"),
+                "Client sensible": ("#FFEB9C", "#9C5700"), "Fermé / saisonnier": ("#595959", "#FFFFFF"),
+                "Ne pas relancer": ("#D9D9D9", "#404040")}
 
 
 def read_clients(path):
@@ -72,7 +76,7 @@ def build(path, commercial, clients):
     write_savoir(wb, sav, F, commercial)
 
     # ---------------- BASECLIENTS
-    widths = [12, 40, 13, 26, 10, 10, 10, 11, 10, 11, 15, 21, 42]
+    widths = [12, 40, 13, 26, 10, 10, 10, 11, 10, 11, 15, 28, 42]
     for i, w in enumerate(widths):
         base.set_column(i, i, w)
     base.set_row(0, 32)
@@ -135,7 +139,7 @@ def build(path, commercial, clients):
 def build_day(wb, ws, day, F, title, hdr, time_f, cell):
     center = F(align="center")
     X = DAYCOL[day]
-    widths = [8, 11, 32, 22, 13, 19, 38, 34]
+    widths = [8, 11, 32, 22, 13, 27, 36, 30]
     for i, w in enumerate(widths):
         ws.set_column(i, i, w)
     ws.set_column(8, 9, 10, None, {"hidden": True})
@@ -218,7 +222,7 @@ def write_savoir(wb, ws, F, commercial):
         "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
         "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes).",
         "Cochez les jours où le client doit être appelé. Pour un client appelé tous les jours, cochez seulement « TOUS LES JOURS » : les 5 jours se colorent en vert.",
-        "Si besoin, choisissez une CONSIGNE pour le remplaçant (Commande habituelle, Attention impayé, Ne pas relancer, Client sensible) et ajoutez un commentaire.",
+        "Si besoin, choisissez une CONSIGNE pour le remplaçant (Proposer le Flash, Demander le chef, Fermé / saisonnier, Attention impayé…) et précisez dans le commentaire (prénom, date de réouverture…).",
         "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
         "Pour imprimer une journée : ouvrez la feuille du jour puis Fichier > Imprimer. La colonne NOTES sert à écrire à la main.",
     ]
