@@ -259,8 +259,10 @@ def write_savoir(wb, ws, F, commercial):
     r += 2
     ws.set_row(r, 24)
     ws.merge_range(r, 1, r, 10, "DANS GOOGLE SHEETS", g_h)
-    for s in ["Si les cases à cocher n'apparaissent pas : sélectionnez les colonnes TOUS LES JOURS à VENDREDI de BASECLIENTS, puis Insertion > Case à cocher.",
-              "En attendant, taper X (ou OUI) dans la case du jour fonctionne aussi.",
+    for s in ["Les cases à cocher d'Excel ne passent pas dans Google Sheets (Google lui-même ne les garde pas dans un fichier Excel). Après l'import, une seule fois :",
+              "1) Feuille BASECLIENTS : tapez E2:J1001 dans la zone de nom (en haut à gauche, à côté de fx) puis Entrée.",
+              "2) Insertion > Case à cocher. Les cases vides deviennent des cases décochées. En attendant, taper X (ou OUI) fonctionne aussi.",
+              "Retour vers Excel : les cases deviennent VRAI / FAUX. Dans Excel, sélectionnez E2:J1001 de BASECLIENTS puis Insertion > Case à cocher.",
               "Pour imprimer : Fichier > Imprimer, puis choisissez la feuille du jour."]:
         r += 1
         ws.set_row(r, 32)
