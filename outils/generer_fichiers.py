@@ -3,6 +3,10 @@
 Formules volontairement classiques (INDEX, MATCH, SMALL, IF, AND, OR, ISNUMBER,
 TIMEVALUE, IFERROR) : pas de tableau dynamique, pas de référence structurée,
 pas de "" utilisé dans un calcul (Google Sheets le traite comme 0).
+
+Numbers (iPad) : le tableau Excel ne doit pas porter le nom de la feuille (sinon
+Numbers abandonne toute formule qui lit BASECLIENTS) et les heures sont du TEXTE
+« 09:30 » (Numbers convertit les heures Excel dans un type qui refuse MOD/+).
 """
 import datetime, os, re, sys
 import openpyxl, xlsxwriter
@@ -14,6 +18,7 @@ DAYCOL = dict(zip(DAYS, "FGHIJ"))
 CONSIGNES = ["Commande habituelle", "Proposer le Flash", "Commande par mail / Webstore", "Demander le chef",
              "Heure impérative", "Attention impayé", "Client sensible", "Fermé / saisonnier", "Ne pas relancer"]
 TIMES = [datetime.time(h, m) for h in range(8, 19) for m in (0, 15, 30, 45) if (h, m) <= (18, 30)]
+VIDE = "(vide)"                      # 1er choix des listes : efface l'heure / la consigne (partout pareil)
 BASE_HDR = ["HEURE D'APPEL", "NOM CLIENT", "CODE CLIENT", "VILLE", "TOUS LES JOURS",
             *DAYS, "TÉLÉPHONE", "CONSIGNE", "COMMENTAIRE"]
 EXEMPLE = [datetime.time(8, 30), "EXEMPLE - NE PAS SUPPRIMER", 123456, "VILLARD DE LANS", False,
@@ -25,6 +30,23 @@ CONSIGNE_FMT = {"Commande habituelle": ("#DDEBF7", "#1F4E78"), "Proposer le Flas
                 "Heure impérative": ("#F8CBE0", "#7A1F4D"), "Attention impayé": ("#FFC7CE", "#9C0006"),
                 "Client sensible": ("#FFEB9C", "#9C5700"), "Fermé / saisonnier": ("#595959", "#FFFFFF"),
                 "Ne pas relancer": ("#D9D9D9", "#404040")}
+
+
+def heure_texte(v):
+    """Heure en texte « HH:MM » (lisible par Excel, Google Sheets, LibreOffice et Numbers)."""
+    if isinstance(v, datetime.datetime):
+        v = v.time()
+    if isinstance(v, datetime.time):
+        return v.strftime("%H:%M")
+    if isinstance(v, float) and 0 <= v < 1:                     # heure Excel restée en nombre
+        m = round(v * 1440)
+        return f"{m // 60:02d}:{m % 60:02d}"
+    if isinstance(v, str):
+        m = re.fullmatch(r"\s*(\d{1,2})\s*[:hH]\s*(\d{2})?\s*", v)
+        if m and int(m.group(1)) < 24:
+            return f"{int(m.group(1)):02d}:{int(m.group(2) or 0):02d}"
+        return None if v.strip() in ("", VIDE) else v.strip()
+    return v
 
 
 def read_clients(path):
@@ -52,10 +74,10 @@ def build(path, commercial, clients):
 
     # ---------------- formats
     hdr = F(bold=True, font_color="white", bg_color=RED, align="center", border=1, border_color="white", text_wrap=True)
-    time_f, txt_f, code_f = F(num_format="hh:mm", align="center"), F(num_format="@"), F(align="left")
+    time_f, txt_f, code_f = F(num_format="@", align="center"), F(num_format="@"), F(align="left")
     box = F(checkbox=True, align="center")
     ex = dict(italic=True, font_color=GREY, bg_color="#EDEDED")
-    ex_time, ex_txt, ex_code = F(num_format="hh:mm", align="center", **ex), F(num_format="@", **ex), F(align="left", **ex)
+    ex_time, ex_txt, ex_code = F(num_format="@", align="center", **ex), F(num_format="@", **ex), F(align="left", **ex)
     ex_box = F(checkbox=True, align="center", **ex)
 
     # ---------------- LISTES (masquée) : sources des menus déroulants
@@ -66,9 +88,9 @@ def build(path, commercial, clients):
     lst = wb.add_worksheet("LISTES")
 
     lst.write(0, 0, "HEURES", hdr); lst.write(0, 1, "CONSIGNES", hdr)
-    for i, t in enumerate(TIMES, 1):
-        lst.write_datetime(i, 0, datetime.datetime.combine(datetime.date(1899, 12, 31), t), time_f)
-    for i, c in enumerate(CONSIGNES, 1):
+    for i, t in enumerate([VIDE] + [t.strftime("%H:%M") for t in TIMES], 1):
+        lst.write_string(i, 0, t, time_f)
+    for i, c in enumerate([VIDE] + CONSIGNES, 1):
         lst.write(i, 1, c)
     lst.set_column(0, 1, 22)
     lst.hide()
@@ -84,7 +106,7 @@ def build(path, commercial, clients):
     rows = [EXEMPLE] + clients
     last = max(1 + len(rows), 2)
     base.add_table(0, 0, last - 1, 12, {
-        "name": "BASECLIENTS", "style": "Table Style Medium 3",
+        "name": "TableClients", "style": "Table Style Medium 3",
         "columns": [{"header": h, "header_format": hdr} for h in BASE_HDR]})
 
     def put(ws, r, c, v, fmt):
@@ -108,16 +130,18 @@ def build(path, commercial, clients):
             v = row[c]
             if c in range(4, 10):
                 v = True if v is True else (v.strip() if isinstance(v, str) and v.strip() else None)  # vide = décochée
-            if c == 0 and isinstance(v, datetime.datetime):
-                v = v.time()
+            if c == 0:
+                v = heure_texte(v)
+            if c == 11 and v == VIDE:
+                v = None
             put(base, i, c, v, fmts[c])
 
     base.data_validation(1, 0, MAXROW - 1, 0, {
-        "validate": "list", "source": f"=LISTES!$A$2:$A${len(TIMES)+1}", "error_type": "warning",
+        "validate": "list", "source": f"=LISTES!$A$2:$A${len(TIMES)+2}", "error_type": "warning",
         "input_title": "Heure d'appel", "input_message": "Choisissez une heure (08:00 à 18:30).",
         "error_title": "Heure inhabituelle", "error_message": "Cette heure n'est pas dans la liste. La garder quand même ?"})
     base.data_validation(1, 11, MAXROW - 1, 11, {
-        "validate": "list", "source": f"=LISTES!$B$2:$B${len(CONSIGNES)+1}", "error_type": "warning",
+        "validate": "list", "source": f"=LISTES!$B$2:$B${len(CONSIGNES)+2}", "error_type": "warning",
         "error_title": "Consigne", "error_message": "Cette consigne n'est pas dans la liste. La garder quand même ?"})
     base.conditional_format(1, 5, MAXROW - 1, 9, {
         "type": "formula", "criteria": "=$E2=TRUE", "format": wb.add_format({"bg_color": "#C6EFCE"})})
@@ -157,7 +181,7 @@ def build_day(wb, ws, day, F, title, hdr, time_f, cell):
     n, t, e, dd = B("B"), B("A"), B("E"), B(X)
     checked = f'OR({e}=TRUE,{dd}=TRUE,{e}="X",{dd}="X",{e}="OUI",{dd}="OUI")'
     key = (f'=IF(AND({n}<>"",LEFT({n},7)<>"EXEMPLE",{checked}),'
-           f'IF(ISNUMBER({t}),MOD({t},1),IFERROR(TIMEVALUE({t}),1))+ROW()/10000000,"")')
+           f'IFERROR(IF(ISNUMBER({t}),MOD({t},1),TIMEVALUE({t})),1)+ROW()/10000000,"")')
     src = ["A", "C", "B", "D", "K", "L", "M"]
     rng = f"$I$3:$I${NLIST+2}"
     for r in range(2, NLIST + 2):                       # lignes Excel 3..1002
@@ -167,7 +191,8 @@ def build_day(wb, ws, day, F, title, hdr, time_f, cell):
         ws.write_formula(r, 9, f'=IFERROR(MATCH(SMALL({rng},ROW()-2),{rng},0)+1,"")', None, "")
         for c, s in enumerate(src):
             ix = f"INDEX(BASECLIENTS!${s}:${s},$J{R})"
-            ws.write_formula(r, c, f'=IF($J{R}="","",IF({ix}="","",{ix}))', time_f if c == 0 else (center if c == 1 else cell), "")
+            vide = f'OR({ix}="",{ix}="{VIDE}")' if s in ("A", "L") else f'{ix}=""'
+            ws.write_formula(r, c, f'=IF($J{R}="","",IF({vide},"",{ix}))', center if c <= 1 else cell, "")
     last = NLIST + 1
     # Google Sheets et LibreOffice n'appliquent que la 1re règle vraie : la plus précise d'abord
     for txt, (bg, fg) in CONSIGNE_FMT.items():
@@ -228,7 +253,7 @@ def write_savoir(wb, ws, F, commercial):
     ws.merge_range(r, 1, r, 10, "COMMENT REMPLIR LE FICHIER", sec); r += 1
     steps = [
         "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
-        "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes).",
+        "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes). Pour enlever une heure ou une consigne : choisissez « (vide) » en haut de la liste.",
         "Cochez les jours où le client doit être appelé (dans Google Sheets : tapez X dans la case). Pour un client appelé tous les jours, cochez seulement « TOUS LES JOURS » : les 5 jours se colorent en vert.",
         "Si besoin, choisissez une CONSIGNE pour le remplaçant (Proposer le Flash, Demander le chef, Fermé / saisonnier, Attention impayé…) et précisez dans le commentaire (prénom, date de réouverture…).",
         "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
