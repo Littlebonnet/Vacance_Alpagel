@@ -18,6 +18,7 @@ DAYCOL = dict(zip(DAYS, "FGHIJ"))
 CONSIGNES = ["Commande habituelle", "Proposer le Flash", "Commande par mail / Webstore", "Demander le chef",
              "Heure impérative", "Attention impayé", "Client sensible", "Fermé / saisonnier", "Ne pas relancer"]
 TIMES = [datetime.time(h, m) for h in range(8, 19) for m in (0, 15, 30, 45) if (h, m) <= (18, 30)]
+VIDE = "(vide)"                      # 1er choix des listes : efface l'heure / la consigne (partout pareil)
 BASE_HDR = ["HEURE D'APPEL", "NOM CLIENT", "CODE CLIENT", "VILLE", "TOUS LES JOURS",
             *DAYS, "TÉLÉPHONE", "CONSIGNE", "COMMENTAIRE"]
 EXEMPLE = [datetime.time(8, 30), "EXEMPLE - NE PAS SUPPRIMER", 123456, "VILLARD DE LANS", False,
@@ -44,7 +45,7 @@ def heure_texte(v):
         m = re.fullmatch(r"\s*(\d{1,2})\s*[:hH]\s*(\d{2})?\s*", v)
         if m and int(m.group(1)) < 24:
             return f"{int(m.group(1)):02d}:{int(m.group(2) or 0):02d}"
-        return v.strip() or None
+        return None if v.strip() in ("", VIDE) else v.strip()
     return v
 
 
@@ -87,9 +88,9 @@ def build(path, commercial, clients):
     lst = wb.add_worksheet("LISTES")
 
     lst.write(0, 0, "HEURES", hdr); lst.write(0, 1, "CONSIGNES", hdr)
-    for i, t in enumerate(TIMES, 1):
-        lst.write_string(i, 0, t.strftime("%H:%M"), time_f)
-    for i, c in enumerate(CONSIGNES, 1):
+    for i, t in enumerate([VIDE] + [t.strftime("%H:%M") for t in TIMES], 1):
+        lst.write_string(i, 0, t, time_f)
+    for i, c in enumerate([VIDE] + CONSIGNES, 1):
         lst.write(i, 1, c)
     lst.set_column(0, 1, 22)
     lst.hide()
@@ -131,14 +132,16 @@ def build(path, commercial, clients):
                 v = True if v is True else (v.strip() if isinstance(v, str) and v.strip() else None)  # vide = décochée
             if c == 0:
                 v = heure_texte(v)
+            if c == 11 and v == VIDE:
+                v = None
             put(base, i, c, v, fmts[c])
 
     base.data_validation(1, 0, MAXROW - 1, 0, {
-        "validate": "list", "source": f"=LISTES!$A$2:$A${len(TIMES)+1}", "error_type": "warning",
+        "validate": "list", "source": f"=LISTES!$A$2:$A${len(TIMES)+2}", "error_type": "warning",
         "input_title": "Heure d'appel", "input_message": "Choisissez une heure (08:00 à 18:30).",
         "error_title": "Heure inhabituelle", "error_message": "Cette heure n'est pas dans la liste. La garder quand même ?"})
     base.data_validation(1, 11, MAXROW - 1, 11, {
-        "validate": "list", "source": f"=LISTES!$B$2:$B${len(CONSIGNES)+1}", "error_type": "warning",
+        "validate": "list", "source": f"=LISTES!$B$2:$B${len(CONSIGNES)+2}", "error_type": "warning",
         "error_title": "Consigne", "error_message": "Cette consigne n'est pas dans la liste. La garder quand même ?"})
     base.conditional_format(1, 5, MAXROW - 1, 9, {
         "type": "formula", "criteria": "=$E2=TRUE", "format": wb.add_format({"bg_color": "#C6EFCE"})})
@@ -188,7 +191,8 @@ def build_day(wb, ws, day, F, title, hdr, time_f, cell):
         ws.write_formula(r, 9, f'=IFERROR(MATCH(SMALL({rng},ROW()-2),{rng},0)+1,"")', None, "")
         for c, s in enumerate(src):
             ix = f"INDEX(BASECLIENTS!${s}:${s},$J{R})"
-            ws.write_formula(r, c, f'=IF($J{R}="","",IF({ix}="","",{ix}))', center if c <= 1 else cell, "")
+            vide = f'OR({ix}="",{ix}="{VIDE}")' if s in ("A", "L") else f'{ix}=""'
+            ws.write_formula(r, c, f'=IF($J{R}="","",IF({vide},"",{ix}))', center if c <= 1 else cell, "")
     last = NLIST + 1
     # Google Sheets et LibreOffice n'appliquent que la 1re règle vraie : la plus précise d'abord
     for txt, (bg, fg) in CONSIGNE_FMT.items():
@@ -249,7 +253,7 @@ def write_savoir(wb, ws, F, commercial):
     ws.merge_range(r, 1, r, 10, "COMMENT REMPLIR LE FICHIER", sec); r += 1
     steps = [
         "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
-        "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes).",
+        "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes). Pour enlever une heure ou une consigne : choisissez « (vide) » en haut de la liste.",
         "Cochez les jours où le client doit être appelé (dans Google Sheets : tapez X dans la case). Pour un client appelé tous les jours, cochez seulement « TOUS LES JOURS » : les 5 jours se colorent en vert.",
         "Si besoin, choisissez une CONSIGNE pour le remplaçant (Proposer le Flash, Demander le chef, Fermé / saisonnier, Attention impayé…) et précisez dans le commentaire (prénom, date de réouverture…).",
         "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
