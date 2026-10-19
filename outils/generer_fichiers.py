@@ -15,21 +15,20 @@ MAXROW = 1001                        # dernière ligne client possible dans BASE
 NLIST = MAXROW - 1                   # lignes calculées par feuille jour
 DAYS = ["LUNDI", "MARDI", "MERCREDI", "JEUDI", "VENDREDI"]
 DAYCOL = dict(zip(DAYS, "FGHIJ"))
-CONSIGNES = ["Commande habituelle", "Proposer le Flash", "Commande par mail / Webstore", "Demander le chef",
-             "Heure impérative", "Attention impayé", "Client sensible", "Fermé / saisonnier", "Ne pas relancer"]
+CONSIGNES = ["Proposer le Flash", "Demander le chef", "Heure impérative", "Appeler le portable en priorité",
+             "Laisser un message / SMS", "Rappeler si pas de réponse", "Nouveau client", "Client sensible"]
 TIMES = [datetime.time(h, m) for h in range(8, 19) for m in (0, 15, 30, 45) if (h, m) <= (18, 30)]
 VIDE = "(vide)"                      # 1er choix des listes : efface l'heure / la consigne (partout pareil)
 BASE_HDR = ["HEURE D'APPEL", "NOM CLIENT", "CODE CLIENT", "VILLE", "TOUS LES JOURS",
             *DAYS, "TÉLÉPHONE", "CONSIGNE", "COMMENTAIRE"]
 EXEMPLE = [datetime.time(8, 30), "EXEMPLE - NE PAS SUPPRIMER", 123456, "VILLARD DE LANS", False,
-           True, False, True, False, False, "0476000000", "Commande habituelle",
+           True, False, True, False, False, "0476000000", "Demander le chef",
            "Demander Paul - livraison le mardi"]
 RED, DARK, GREY = "#C0504D", "#943634", "#808080"
-CONSIGNE_FMT = {"Commande habituelle": ("#DDEBF7", "#1F4E78"), "Proposer le Flash": ("#E4DFEC", "#5B2C6F"),
-                "Commande par mail / Webstore": ("#E2EFDA", "#375623"), "Demander le chef": ("#FCE4D6", "#843C0C"),
-                "Heure impérative": ("#F8CBE0", "#7A1F4D"), "Attention impayé": ("#FFC7CE", "#9C0006"),
-                "Client sensible": ("#FFEB9C", "#9C5700"), "Fermé / saisonnier": ("#595959", "#FFFFFF"),
-                "Ne pas relancer": ("#D9D9D9", "#404040")}
+CONSIGNE_FMT = {"Proposer le Flash": ("#E4DFEC", "#5B2C6F"), "Demander le chef": ("#FCE4D6", "#843C0C"),
+                "Heure impérative": ("#F8CBE0", "#7A1F4D"), "Appeler le portable en priorité": ("#DDEBF7", "#1F4E78"),
+                "Laisser un message / SMS": ("#E2EFDA", "#375623"), "Rappeler si pas de réponse": ("#FFC7CE", "#9C0006"),
+                "Nouveau client": ("#D0EFEF", "#0E5E5E"), "Client sensible": ("#FFEB9C", "#9C5700")}
 
 
 def heure_texte(v):
@@ -99,7 +98,7 @@ def build(path, commercial, clients):
         write_savoir(wb, ws_sav, F, commercial, app)
 
     # ---------------- BASECLIENTS
-    widths = [12, 40, 13, 26, 10, 10, 10, 11, 10, 11, 15, 28, 42]
+    widths = [12, 40, 13, 26, 10, 10, 10, 11, 10, 11, 15, 31, 42]
     for i, w in enumerate(widths):
         base.set_column(i, i, w)
     base.set_row(0, 32)
@@ -164,7 +163,7 @@ def build(path, commercial, clients):
 def build_day(wb, ws, day, F, title, hdr, time_f, cell):
     center = F(align="center")
     X = DAYCOL[day]
-    widths = [8, 11, 32, 22, 13, 27, 36, 30]
+    widths = [8, 11, 32, 22, 13, 30, 34, 29]
     for i, w in enumerate(widths):
         ws.set_column(i, i, w)
     ws.set_column(8, 9, 10, None, {"hidden": True})
@@ -224,7 +223,7 @@ ETAPES = {
         "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
         "HEURE : cliquez dans la case puis sur la petite flèche : choisissez l'heure (08:00 à 18:30, toutes les 15 minutes). Pour l'enlever : choisissez « (vide) » en haut de la liste, ou touche Suppr.",
         "JOURS : cliquez sur les cases à cocher des jours où le client doit être appelé. Client appelé tous les jours : cochez seulement « TOUS LES JOURS », les 5 jours se colorent en vert.",
-        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Fermé / saisonnier…) et précisez dans le commentaire (prénom, date de réouverture…).",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Appeler le portable en priorité…) et précisez dans le commentaire (prénom, numéro de portable…).",
         "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
         "IMPRIMER une journée : ouvrez la feuille du jour, puis Fichier > Imprimer. Une page en largeur, la colonne NOTES sert à écrire à la main.",
     ],
@@ -232,7 +231,7 @@ ETAPES = {
         "Ouvrez l'onglet BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
         "HEURE : cliquez dans la case : une liste s'ouvre (08:00 à 18:30, toutes les 15 minutes). Pour l'enlever : choisissez « (vide) » en haut de la liste, ou touche Suppr.",
         "JOURS : tapez X dans la case de chaque jour où le client doit être appelé (majuscule ou minuscule). Client appelé tous les jours : X seulement dans « TOUS LES JOURS ».",
-        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Fermé / saisonnier…) et précisez dans le commentaire (prénom, date de réouverture…).",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Appeler le portable en priorité…) et précisez dans le commentaire (prénom, numéro de portable…).",
         "C'est tout : les onglets LUNDI à VENDREDI se remplissent tout seuls, classés par heure d'appel. Les clients sans heure sont en bas de liste.",
         "IMPRIMER une journée : ouvrez l'onglet du jour, sélectionnez les lignes des clients, puis Fichier > Imprimer > « Cellules sélectionnées » (évite des pages vides).",
     ],
@@ -240,7 +239,7 @@ ETAPES = {
         "Ouvrez le fichier depuis l'app Fichiers (ou la pièce jointe du mail) : il s'ouvre dans Numbers. Le message « Détails de l'importation » est normal : fermez-le.",
         "Onglet BASECLIENTS : une ligne = un client. HEURE : touchez la case puis choisissez l'heure dans la liste. Pour l'enlever : choisissez « (vide) ».",
         "JOURS : touchez la case du jour et tapez X (majuscule ou minuscule). Client appelé tous les jours : X seulement dans « TOUS LES JOURS ». VRAI fonctionne aussi.",
-        "CONSIGNE (si besoin) : choisissez-la dans la liste et précisez dans le commentaire (prénom, date de réouverture…). Ne supprimez pas la ligne grise EXEMPLE.",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste et précisez dans le commentaire (prénom, numéro de portable…). Ne supprimez pas la ligne grise EXEMPLE.",
         "C'est tout : les onglets LUNDI à VENDREDI se remplissent tout seuls, classés par heure d'appel. Les clients sans heure sont en bas de liste.",
         "IMPRIMER : ouvrez l'onglet du jour, touchez le bouton « ... » puis Imprimer. RENVOYER le fichier : « ... » > Exporter > Excel, puis envoyez-le par mail.",
     ],
@@ -322,7 +321,7 @@ def write_savoir(wb, ws, F, commercial, app):
         ws.write(r, c, h, mh)
     r += 1
     ws.set_row(r, 22)
-    for c, v in enumerate(["08:30", "LE BISTROT", non, oui, non, oui, non, non, "Commande habituelle"], 2):
+    for c, v in enumerate(["08:30", "LE BISTROT", non, oui, non, oui, non, non, "Proposer le Flash"], 2):
         ws.write(r, c, v, fx if v == oui else (mcl if c in (3, 10) else mc))
     r += 1
     ws.merge_range(r, 2, r, 10, "➜ apparaît automatiquement dans LUNDI et MERCREDI, à 08:30.", arrow)
