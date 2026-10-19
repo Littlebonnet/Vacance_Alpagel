@@ -81,8 +81,8 @@ def build(path, commercial, clients):
     ex_box = F(checkbox=True, align="center", **ex)
 
     # ---------------- LISTES (masquée) : sources des menus déroulants
-    # ---------------- A SAVOIR
-    sav = wb.add_worksheet("A SAVOIR")
+    # ---------------- 3 notices (une par logiciel), puis les données
+    savs = {app: wb.add_worksheet(NOTICES[app][0]) for app in NOTICES}
     base = wb.add_worksheet("BASECLIENTS")
     days_ws = {d: wb.add_worksheet(d) for d in DAYS}
     lst = wb.add_worksheet("LISTES")
@@ -95,7 +95,8 @@ def build(path, commercial, clients):
     lst.set_column(0, 1, 22)
     lst.hide()
 
-    write_savoir(wb, sav, F, commercial)
+    for app, ws_sav in savs.items():
+        write_savoir(wb, ws_sav, F, commercial, app)
 
     # ---------------- BASECLIENTS
     widths = [12, 40, 13, 26, 10, 10, 10, 11, 10, 11, 15, 28, 42]
@@ -156,7 +157,7 @@ def build(path, commercial, clients):
     for d, ws in days_ws.items():
         build_day(wb, ws, d, F, title, hdr, time_f, cell)
 
-    sav.activate()
+    savs["excel"].activate()
     wb.close()
 
 
@@ -170,7 +171,7 @@ def build_day(wb, ws, day, F, title, hdr, time_f, cell):
     ws.set_row(0, 30)
     ws.set_row(1, 22)
     ws.merge_range(0, 0, 0, 7, "", title)
-    ws.write_formula(0, 0, f"=\"{day}\"&IF('A SAVOIR'!$D$4=\"\",\"\",\"   -   \"&'A SAVOIR'!$D$4)", title, day)
+    ws.write_formula(0, 0, f"=\"{day}\"&IF({NOM}=\"\",\"\",\"   -   \"&{NOM})", title, day)
     for c, h in enumerate(["HEURE", "CODE CLIENT", "NOM CLIENT", "VILLE", "TÉLÉPHONE", "CONSIGNE", "COMMENTAIRE", "NOTES"]):
         ws.write(1, c, h, hdr)
     ws.write(1, 8, "CLÉ (calcul)", hdr)
@@ -211,55 +212,103 @@ def build_day(wb, ws, day, F, title, hdr, time_f, cell):
     wb.define_name(f"{day}!_xlnm.Print_Area", f"=OFFSET({day}!$A$1,0,0,MAX(3,COUNT({day}!$J:$J)+2),8)")
 
 
-def write_savoir(wb, ws, F, commercial):
+NOTICES = {  # onglet, nom affiché, couleur
+    "excel":   ("A SAVOIR EXCEL",   "EXCEL (ordinateur)",          "#217346"),
+    "sheets":  ("A SAVOIR SHEETS",  "GOOGLE SHEETS",               "#188038"),
+    "numbers": ("A SAVOIR NUMBERS", "NUMBERS (iPad)",              "#C55A11"),
+}
+NOM = f"'{NOTICES['excel'][0]}'!$D$4"     # case unique du nom du commercial (titres des listes)
+
+ETAPES = {
+    "excel": [
+        "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
+        "HEURE : cliquez dans la case puis sur la petite flèche : choisissez l'heure (08:00 à 18:30, toutes les 15 minutes). Pour l'enlever : choisissez « (vide) » en haut de la liste, ou touche Suppr.",
+        "JOURS : cliquez sur les cases à cocher des jours où le client doit être appelé. Client appelé tous les jours : cochez seulement « TOUS LES JOURS », les 5 jours se colorent en vert.",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Fermé / saisonnier…) et précisez dans le commentaire (prénom, date de réouverture…).",
+        "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
+        "IMPRIMER une journée : ouvrez la feuille du jour, puis Fichier > Imprimer. Une page en largeur, la colonne NOTES sert à écrire à la main.",
+    ],
+    "sheets": [
+        "Ouvrez l'onglet BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
+        "HEURE : cliquez dans la case : une liste s'ouvre (08:00 à 18:30, toutes les 15 minutes). Pour l'enlever : choisissez « (vide) » en haut de la liste, ou touche Suppr.",
+        "JOURS : tapez X dans la case de chaque jour où le client doit être appelé (majuscule ou minuscule). Client appelé tous les jours : X seulement dans « TOUS LES JOURS ».",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste (Proposer le Flash, Demander le chef, Fermé / saisonnier…) et précisez dans le commentaire (prénom, date de réouverture…).",
+        "C'est tout : les onglets LUNDI à VENDREDI se remplissent tout seuls, classés par heure d'appel. Les clients sans heure sont en bas de liste.",
+        "IMPRIMER une journée : ouvrez l'onglet du jour, sélectionnez les lignes des clients, puis Fichier > Imprimer > « Cellules sélectionnées » (évite des pages vides).",
+    ],
+    "numbers": [
+        "Ouvrez le fichier depuis l'app Fichiers (ou la pièce jointe du mail) : il s'ouvre dans Numbers. Le message « Détails de l'importation » est normal : fermez-le.",
+        "Onglet BASECLIENTS : une ligne = un client. HEURE : touchez la case puis choisissez l'heure dans la liste. Pour l'enlever : choisissez « (vide) ».",
+        "JOURS : touchez la case du jour et tapez X (majuscule ou minuscule). Client appelé tous les jours : X seulement dans « TOUS LES JOURS ». VRAI fonctionne aussi.",
+        "CONSIGNE (si besoin) : choisissez-la dans la liste et précisez dans le commentaire (prénom, date de réouverture…). Ne supprimez pas la ligne grise EXEMPLE.",
+        "C'est tout : les onglets LUNDI à VENDREDI se remplissent tout seuls, classés par heure d'appel. Les clients sans heure sont en bas de liste.",
+        "IMPRIMER : ouvrez l'onglet du jour, touchez le bouton « ... » puis Imprimer. RENVOYER le fichier : « ... » > Exporter > Excel, puis envoyez-le par mail.",
+    ],
+}
+ENCADRE = {   # titre, ligne principale, lignes secondaires
+    "excel": ("BON À SAVOIR (EXCEL)",
+              "Si une liste du jour ne se met pas à jour : appuyez sur Ctrl + Alt + F9.",
+              ["Excel 2016 / 2019 : les cases à cocher s'affichent VRAI / FAUX. Tapez simplement X dans la case du jour, cela fonctionne pareil.",
+               "Fichier reçu depuis Google Sheets (VRAI / FAUX) : sélectionnez E2:J1001 de BASECLIENTS puis Insertion > Case à cocher."]),
+    "sheets": ("BON À SAVOIR (GOOGLE SHEETS)",
+               "Pas de cases à cocher dans Google Sheets : un X dans la case suffit.",
+               ["Facultatif, pour de vraies cases : onglet BASECLIENTS, tapez E2:J1001 dans la zone de nom (en haut à gauche, à côté de fx), Entrée, puis Insertion > Case à cocher.",
+                "Renvoyer le fichier en Excel : Fichier > Télécharger > Microsoft Excel (.xlsx)."]),
+    "numbers": ("BON À SAVOIR (NUMBERS)",
+                "Les couleurs automatiques (consignes, jours en vert, lignes alternées) ne s'affichent pas dans Numbers : c'est normal, tout le reste fonctionne.",
+                ["Facultatif, pour de vraies cases : sélectionnez les colonnes TOUS LES JOURS à VENDREDI, touchez le pinceau > Cellule > format Case à cocher.",
+                 "Votre nom se modifie dans l'onglet A SAVOIR EXCEL (case jaune) : il s'affiche en haut des listes imprimées."]),
+}
+
+
+def write_savoir(wb, ws, F, commercial, app):
+    onglet, nom_app, coul = NOTICES[app]
     ws.hide_gridlines(2)
     ws.set_column(0, 0, 2); ws.set_column(1, 1, 5); ws.set_column(2, 2, 10); ws.set_column(3, 3, 30)
     ws.set_column(4, 9, 9); ws.set_column(10, 10, 24)
-    big = F(bold=True, font_size=20, font_color="white", bg_color=DARK, indent=1)
+    big = F(bold=True, font_size=20, font_color="white", bg_color=coul, indent=1)
     sub = F(italic=True, font_color=GREY)
-    sec = F(bold=True, font_size=13, font_color=DARK, bottom=2, bottom_color=DARK)
-    num = F(bold=True, font_size=14, font_color="white", bg_color=RED, align="center")
+    link = F(font_color="#0563C1", underline=1)
+    sec = F(bold=True, font_size=13, font_color=coul, bottom=2, bottom_color=coul)
+    num = F(bold=True, font_size=14, font_color="white", bg_color=coul, align="center")
     txt = F(text_wrap=True)
     lab = F(bold=True, align="right")
     inp = F(bold=True, font_size=13, bg_color="#FFF2CC", border=1, border_color="#BF9000")
+    shown = F(bold=True, font_size=13, bg_color="#F2F2F2", border=1, border_color="#BFBFBF")
     note = F(italic=True, font_color=GREY)
     mh = F(bold=True, font_color="white", bg_color=RED, align="center", border=1, border_color="white", font_size=9)
     mc = F(border=1, border_color="#BFBFBF", align="center")
     mcl = F(border=1, border_color="#BFBFBF")
     mg = F(border=1, border_color="#BFBFBF", align="center", bg_color="#C6EFCE")
+    mx = F(bold=True, font_size=13, font_color="#9C0006", bg_color="#FFF2CC", border=1, border_color="#BFBFBF", align="center")
     arrow = F(bold=True, font_color="#375623")
     dont_h = F(bold=True, font_size=13, font_color="#9C0006", bg_color="#FFC7CE", indent=1)
     dont = F(font_color="#9C0006", bg_color="#FFE5E8", text_wrap=True, indent=1)
-    g_h = F(bold=True, font_size=13, font_color="#1F4E78", bg_color="#DDEBF7", indent=1)
-    g = F(font_color="#1F4E78", bg_color="#EEF5FB", text_wrap=True, indent=1)
-    g_big = F(bold=True, font_size=16, font_color="white", bg_color="#1F4E78", align="center")
-    g_sub = F(bold=True, font_size=12, font_color="#1F4E78", bg_color="#DDEBF7", align="center", text_wrap=True)
-    g_opt = F(italic=True, font_color=GREY, bg_color="#EEF5FB", text_wrap=True, indent=1)
-    mx = F(bold=True, font_size=13, font_color="#9C0006", bg_color="#FFF2CC", border=1, border_color="#BFBFBF", align="center")
+    b_h = F(bold=True, font_size=13, font_color="white", bg_color=coul, indent=1)
+    b_main = F(bold=True, font_size=12, font_color="#1F1F1F", bg_color="#FFF2CC", text_wrap=True, indent=1)
+    b_opt = F(italic=True, font_color="#404040", bg_color="#F2F2F2", text_wrap=True, indent=1)
 
     ws.set_row(0, 40)
-    ws.merge_range("B1:K1", "FICHIER D'APPELS - MODE D'EMPLOI", big)
-    ws.merge_range("B2:K2", "Fonctionne de la même manière dans Excel et dans Google Sheets.", sub)
+    ws.merge_range("B1:K1", f"MODE D'EMPLOI - {nom_app}", big)
+    ws.merge_range("B2:K2", "Le fichier fonctionne de la même manière dans Excel, Google Sheets et Numbers (iPad).", sub)
+    autres = [k for k in NOTICES if k != app]
+    ws.write(2, 2, "Autre logiciel :", F(italic=True, font_color=GREY, align="right"))
+    for c, k in zip((3, 6), autres):
+        ws.write_url(2, c, f"internal:'{NOTICES[k][0]}'!A1", link, f"→ {NOTICES[k][0]}")
+
     ws.set_row(3, 24)
     ws.merge_range("B4:C4", "Commercial :", lab)
-    ws.merge_range("D4:F4", commercial, inp)
-    ws.merge_range("G4:K4", "← votre nom : il s'affiche en haut des listes imprimées", note)
+    if app == "excel":
+        ws.merge_range("D4:F4", commercial, inp)
+        ws.merge_range("G4:K4", "← votre nom : il s'affiche en haut des listes imprimées", note)
+    else:
+        ws.merge_range("D4:F4", "", shown)
+        ws.write_formula("D4", f'=IF({NOM}="","",{NOM})', shown, commercial)
+        ws.merge_range("G4:K4", "← se modifie dans l'onglet A SAVOIR EXCEL (case jaune)", note)
 
-    ws.set_row(5, 34); ws.set_row(6, 36)
-    ws.merge_range("B6:K6", "GOOGLE SHEETS : PAS DE CASES À COCHER ?  TAPEZ SIMPLEMENT « X »", g_big)
-    ws.merge_range("B7:K7", "Un X dans la case du jour (LUNDI, MARDI…) ou dans TOUS LES JOURS fonctionne exactement comme une case cochée.", g_sub)
-
-    r = 8
-    ws.merge_range(r, 1, r, 10, "COMMENT REMPLIR LE FICHIER", sec); r += 1
-    steps = [
-        "Ouvrez la feuille BASECLIENTS. Une ligne = un client. La ligne grise « EXEMPLE » en haut montre comment remplir : ne la supprimez pas, elle n'apparaît jamais dans les listes.",
-        "Choisissez l'heure d'appel dans la liste déroulante (de 08:00 à 18:30, toutes les 15 minutes). Pour enlever une heure ou une consigne : choisissez « (vide) » en haut de la liste.",
-        "Cochez les jours où le client doit être appelé (dans Google Sheets : tapez X dans la case). Pour un client appelé tous les jours, cochez seulement « TOUS LES JOURS » : les 5 jours se colorent en vert.",
-        "Si besoin, choisissez une CONSIGNE pour le remplaçant (Proposer le Flash, Demander le chef, Fermé / saisonnier, Attention impayé…) et précisez dans le commentaire (prénom, date de réouverture…).",
-        "C'est tout : les feuilles LUNDI à VENDREDI se remplissent toutes seules, classées par heure d'appel. Les clients sans heure sont en bas de liste.",
-        "Pour imprimer une journée : ouvrez la feuille du jour puis Fichier > Imprimer. La colonne NOTES sert à écrire à la main.",
-    ]
-    for i, s in enumerate(steps, 1):
+    r = 5
+    ws.merge_range(r, 1, r, 10, "COMMENT REMPLIR LE FICHIER", sec)
+    for i, s in enumerate(ETAPES[app], 1):
         r += 1
         ws.set_row(r, 36)
         ws.write(r, 1, i, num)
@@ -267,32 +316,41 @@ def write_savoir(wb, ws, F, commercial):
 
     r += 2
     ws.merge_range(r, 1, r, 10, "EXEMPLE", sec); r += 2
-    for c, h in enumerate(["HEURE", "NOM CLIENT", "TOUS", "LUN", "MAR", "MER", "JEU", "VEN", "CONSIGNE"], 2):
-        ws.write(r, c, h, mh)
-    r += 1
-    for c, v in enumerate(["08:30", "LE BISTROT", "☐", "☑", "☐", "☑", "☐", "☐", "Commande habituelle"], 2):
-        ws.write(r, c, v, mcl if c in (3, 10) else mc)
-    r += 1
-    ws.merge_range(r, 2, r, 10, "➜ apparaît automatiquement dans les feuilles LUNDI et MERCREDI, à 08:30.", arrow)
-    r += 2
-    for c, h in enumerate(["HEURE", "NOM CLIENT", "TOUS", "LUN", "MAR", "MER", "JEU", "VEN", "CONSIGNE"], 2):
-        ws.write(r, c, h, mh)
-    r += 1
-    for c, v in enumerate(["10:00", "HOTEL DU COL", "☑", "", "", "", "", "", "Client sensible"], 2):
-        ws.write(r, c, v, mg if 5 <= c <= 9 else (mcl if c in (3, 10) else mc))
-    r += 1
-    ws.merge_range(r, 2, r, 10, "➜ apparaît dans les 5 feuilles, à 10:00 (les jours se colorent en vert).", arrow)
-    r += 2
-    ws.merge_range(r, 2, r, 10, "Dans Google Sheets, avec des X :", F(bold=True, font_color="#1F4E78"))
-    r += 1
+    oui, non = ("☑", "☐") if app == "excel" else ("X", "")
+    fx = mc if app == "excel" else mx
     for c, h in enumerate(["HEURE", "NOM CLIENT", "TOUS", "LUN", "MAR", "MER", "JEU", "VEN", "CONSIGNE"], 2):
         ws.write(r, c, h, mh)
     r += 1
     ws.set_row(r, 22)
-    for c, v in enumerate(["09:00", "LA BONNE TABLE", "", "X", "", "", "X", "", "Demander le chef"], 2):
-        ws.write(r, c, v, mx if v == "X" else (mcl if c in (3, 10) else mc))
+    for c, v in enumerate(["08:30", "LE BISTROT", non, oui, non, oui, non, non, "Commande habituelle"], 2):
+        ws.write(r, c, v, fx if v == oui else (mcl if c in (3, 10) else mc))
     r += 1
-    ws.merge_range(r, 2, r, 10, "➜ apparaît dans les feuilles LUNDI et JEUDI, à 09:00. Un X suffit !", arrow)
+    ws.merge_range(r, 2, r, 10, "➜ apparaît automatiquement dans LUNDI et MERCREDI, à 08:30.", arrow)
+    r += 2
+    for c, h in enumerate(["HEURE", "NOM CLIENT", "TOUS", "LUN", "MAR", "MER", "JEU", "VEN", "CONSIGNE"], 2):
+        ws.write(r, c, h, mh)
+    r += 1
+    ws.set_row(r, 22)
+    for c, v in enumerate(["10:00", "HOTEL DU COL", oui, "", "", "", "", "", "Client sensible"], 2):
+        f = fx if v == oui else (mcl if c in (3, 10) else mc)
+        if 5 <= c <= 9 and app != "numbers":
+            f = mg
+        ws.write(r, c, v, f)
+    r += 1
+    vert = " (les jours se colorent en vert)" if app != "numbers" else ""
+    ws.merge_range(r, 2, r, 10, f"➜ apparaît dans les 5 listes, à 10:00{vert}.", arrow)
+
+    r += 2
+    ws.set_row(r, 24)
+    titre, principal, options = ENCADRE[app]
+    ws.merge_range(r, 1, r, 10, titre, b_h)
+    r += 1
+    ws.set_row(r, 32)
+    ws.merge_range(r, 1, r, 10, principal, b_main)
+    for s in options:
+        r += 1
+        ws.set_row(r, 32)
+        ws.merge_range(r, 1, r, 10, "•  " + s, b_opt)
 
     r += 2
     ws.set_row(r, 24)
@@ -303,19 +361,6 @@ def write_savoir(wb, ws, F, commercial):
         r += 1
         ws.set_row(r, 20)
         ws.merge_range(r, 1, r, 10, "✖  " + s, dont)
-
-    r += 2
-    ws.set_row(r, 24)
-    ws.merge_range(r, 1, r, 10, "DANS GOOGLE SHEETS", g_h)
-    r += 1
-    ws.set_row(r, 30)
-    ws.merge_range(r, 1, r, 10, "Tapez simplement X dans la case du jour (majuscule ou minuscule) : rien d'autre à faire.", g_sub)
-    for s, f in [("Pour imprimer : Fichier > Imprimer, puis choisissez la feuille du jour.", g),
-                 ("Facultatif, pour avoir de vraies cases à cocher : feuille BASECLIENTS, tapez E2:J1001 dans la zone de nom (en haut à gauche, à côté de fx), Entrée, puis Insertion > Case à cocher.", g_opt),
-                 ("Retour vers Excel : les cases deviennent VRAI / FAUX. Dans Excel, sélectionnez E2:J1001 de BASECLIENTS puis Insertion > Case à cocher.", g_opt)]:
-        r += 1
-        ws.set_row(r, 32)
-        ws.merge_range(r, 1, r, 10, "•  " + s, f)
     ws.set_landscape(); ws.set_paper(9); ws.fit_to_pages(1, 1)
 
 
